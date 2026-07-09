@@ -1,10 +1,13 @@
-import aiosqlite
+from __future__ import annotations
 
-from config import DATABASE
+from typing import Optional
+
 from models.player import Player
+from services.database import Database
 
 
 class PlayerService:
+    """玩家資料服務"""
 
     @staticmethod
     async def create_player(
@@ -13,11 +16,22 @@ class PlayerService:
         nickname: str,
         avatar: str | None = None
     ) -> bool:
+        """
+        建立玩家
 
-        async with aiosqlite.connect(DATABASE) as db:
+        Returns:
+            True  建立成功
+            False 玩家已存在
+        """
+
+        async with await Database.connect() as db:
 
             cursor = await db.execute(
-                "SELECT id FROM players WHERE discord_id=?",
+                """
+                SELECT id
+                FROM players
+                WHERE discord_id = ?
+                """,
                 (discord_id,)
             )
 
@@ -33,7 +47,10 @@ class PlayerService:
                     nickname,
                     avatar
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES
+                (
+                    ?, ?, ?, ?
+                )
                 """,
                 (
                     discord_id,
@@ -48,25 +65,18 @@ class PlayerService:
             return True
 
     @staticmethod
-    async def get_player(discord_id: int) -> Player | None:
+    async def get_player(
+        discord_id: int
+    ) -> Optional[Player]:
+        """取得單一玩家"""
 
-        async with aiosqlite.connect(DATABASE) as db:
+        async with await Database.connect() as db:
 
             cursor = await db.execute(
                 """
-                SELECT
-                    id,
-                    discord_id,
-                    username,
-                    nickname,
-                    avatar,
-                    elo,
-                    win,
-                    lose,
-                    draw,
-                    mvp
+                SELECT *
                 FROM players
-                WHERE discord_id=?
+                WHERE discord_id = ?
                 """,
                 (discord_id,)
             )
@@ -76,87 +86,55 @@ class PlayerService:
             if row is None:
                 return None
 
-            return Player(*row)
+            return Player(
+                id=row["id"],
+                discord_id=row["discord_id"],
+                username=row["username"],
+                nickname=row["nickname"],
+                avatar=row["avatar"],
+                elo=row["elo"],
+                win=row["win"],
+                lose=row["lose"],
+                draw=row["draw"],
+                mvp=row["mvp"],
+                created_at=row["created_at"]
+            )
 
     @staticmethod
     async def get_all_players() -> list[Player]:
+        """取得全部玩家"""
 
-        async with aiosqlite.connect(DATABASE) as db:
+        async with await Database.connect() as db:
 
             cursor = await db.execute(
                 """
-                SELECT
-                    id,
-                    discord_id,
-                    username,
-                    nickname,
-                    avatar,
-                    elo,
-                    win,
-                    lose,
-                    draw,
-                    mvp
+                SELECT *
                 FROM players
-                ORDER BY elo DESC
+                ORDER BY elo DESC,
+                         nickname ASC
                 """
             )
 
             rows = await cursor.fetchall()
 
-            return [Player(*row) for row in rows]
+            players: list[Player] = []
 
-    @staticmethod
-    async def delete_player(discord_id: int):
+            for row in rows:
 
-        async with aiosqlite.connect(DATABASE) as db:
-
-            await db.execute(
-                "DELETE FROM players WHERE discord_id=?",
-                (discord_id,)
-            )
-
-            await db.commit()
-
-    @staticmethod
-    async def update_avatar(
-        discord_id: int,
-        avatar: str
-    ):
-
-        async with aiosqlite.connect(DATABASE) as db:
-
-            await db.execute(
-                """
-                UPDATE players
-                SET avatar=?
-                WHERE discord_id=?
-                """,
-                (
-                    avatar,
-                    discord_id
+                players.append(
+                    Player(
+                        id=row["id"],
+                        discord_id=row["discord_id"],
+                        username=row["username"],
+                        nickname=row["nickname"],
+                        avatar=row["avatar"],
+                        elo=row["elo"],
+                        win=row["win"],
+                        lose=row["lose"],
+                        draw=row["draw"],
+                        mvp=row["mvp"],
+                        created_at=row["created_at"]
+                    )
                 )
-            )
 
-            await db.commit()
-
-    @staticmethod
-    async def update_elo(
-        discord_id: int,
-        elo: int
-    ):
-
-        async with aiosqlite.connect(DATABASE) as db:
-
-            await db.execute(
-                """
-                UPDATE players
-                SET elo=?
-                WHERE discord_id=?
-                """,
-                (
-                    elo,
-                    discord_id
-                )
-            )
-
-            await db.commit()
+            return players
